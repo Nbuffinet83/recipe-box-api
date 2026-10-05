@@ -13,6 +13,32 @@ DATABASE = "recipes.db"
 
 app = Flask(__name__)
 
+from werkzeug.security import generate_password_hash, check_password_hash
+
+@app.post("/register")
+def register():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username")
+    email = data.get("email")
+    password = data.get("password")
+
+    if not username or not email or not password:
+        return jsonify({"error": "username, email and password required"}), 400
+
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+            (username, email, hash_password(password)),
+        )
+        db.commit()
+    except sqlite3.IntegrityError as e:
+        print("IntegrityError in /register:", e)
+        return jsonify({"error": "username or email taken"}), 409
+
+    return jsonify({"message": f"registered {username}"}), 201
+
+    return jsonify({"message": f"registered {username}"}), 201
 
 def get_db():
     if "db" not in g:
@@ -21,6 +47,11 @@ def get_db():
         g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
+from flask import g  # if you're using g for db
+# ...your other imports...
+from werkzeug.security import generate_password_hash
+
+from flask import g  # if you're using g for db
 
 @app.teardown_appcontext
 def close_db(exception):
@@ -28,6 +59,12 @@ def close_db(exception):
     if db is not None:
         db.close()
 
+def hash_password(plain_password: str) -> str:
+    return generate_password_hash(plain_password)
+
+
+def verify_password(stored_hash: str, candidate_password: str) -> bool:
+    return check_password_hash(stored_hash, candidate_password)
 
 def recipe_to_dict(row):
     return {
